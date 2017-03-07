@@ -5,38 +5,102 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: dnelson <dnelson@student.42.us.org>        +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2017/01/14 12:55:10 by dnelson           #+#    #+#             */
-/*   Updated: 2017/01/24 12:32:36 by dnelson          ###   ########.fr       */
+/*   Created: 2017/03/04 10:46:55 by dnelson           #+#    #+#             */
+/*   Updated: 2017/03/07 12:46:50 by dnelson          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
-#include "libft.h"
 #include <stdlib.h>
 #include <fcntl.h>
 
-/*
-** return 1 when a line is read, 0 when reading is completed(end of file?)
-** or -1 when an error occurs 
-** the static variable declaration allows for the assignment in declaration
-*/
-
-int		get_next_line(const int fd, char **line)
+static int	realloc_str(char **copy, size_t size)
 {
-	static char	*thing = NULL;
-	char		holder[BUFF_SIZE + 1];
-	char		*nl;
-	int			stuff;
+	char		*temp;
+	size_t		old_size;
 
-	while ((stuff = read(fd, holder, BUFF_SIZE)) > 0)
+	old_size = ft_strlen(*copy);
+	if (!(temp = ft_strnew(size)))
+		return (-1);
+	ft_memcpy(temp, *copy, old_size);
+	free(*copy);
+	*copy = ft_strdup(temp);
+	free(temp);
+	return (0);
+}
+
+static int	ft_strsub_newline(char **copy, char **line)
+{
+	char		*temp;
+	size_t		line_len;
+	size_t		read_len;
+
+	if (*copy == NULL)
+		*copy = ft_strnew(BUFF_SIZE);
+	if (ft_strchr(*copy, '\n') == NULL)
+		return (1);
+	line_len = ((ft_strchr(*copy, '\n')) - *copy);
+	read_len = ft_strlen(*copy);
+	temp = ft_strsub(*copy, (line_len + 1), read_len);
+	*line = ft_strsub(*copy, 0, line_len);
+	free(*copy);
+	*copy = ft_strdup(temp);
+	free(temp);
+	return (0);
+}
+
+static int	eof_exit(char **copy, char **buffer, char **line)
+{
+	if (ft_strlen(*copy))
 	{
-		holder[stuff] = '\0';
-		if (nl = (ft_strchr(holder, '\n')))
-		{
-			*line = ft_strndup(holder, nl - holder);
-			thing = nl + 1;
-			return (1);
-		}
+		if (!(*line = ft_strdup(*copy)))
+			return (-1);
+		ft_strdel(copy);
+		ft_strdel(buffer);
+		return (1);
 	}
-	/*this seems like it would be a useful step*/	
+	return (0);
+}
+
+static int	process_read(char **copy, char **buffer)
+{
+	size_t		line_len;
+	size_t		buff_len;
+	char		*temp;
+
+	line_len = ft_strlen(*copy);
+	buff_len = ft_strlen(*buffer);
+	if (!*copy || (realloc_str(copy, (line_len + buff_len + 1))) ||
+			!(temp = ft_strjoin(*copy, *buffer)))
+		return (-1);
+	free(*copy);
+	*copy = ft_strdup(temp);
+	free(temp);
+	ft_strdel(buffer);
+	return (0);
+}
+
+int			get_next_line(const int fd, char **line)
+{
+	char		*buffer;
+	static char	*fd_x[MAX_FD];
+	int			ret;
+
+	if (fd < 0 || fd > 1024 || !line || BUFF_SIZE < 1)
+		return (-1);
+	if ((ft_strsub_newline(&fd_x[fd], &(*line))) == 0)
+		return (1);
+	while ((ft_strchr(fd_x[fd], '\n')) == NULL)
+	{
+		buffer = ft_strnew(BUFF_SIZE);
+		if ((ret = read(fd, buffer, BUFF_SIZE)) > 0)
+			if (process_read(&fd_x[fd], &buffer) == -1)
+				return (-1);
+		if (ret == 0)
+			return (eof_exit(&fd_x[fd], &buffer, &(*line)));
+		if (ret == -1)
+			return (-1);
+	}
+	ft_strsub_newline(&fd_x[fd], &(*line));
+	return (1);
 }
